@@ -1,0 +1,58 @@
+/* MapLibre GL CSS overrides */
+.maplibregl-map {
+  font-family: 'Inter', sans-serif;
+}
+
+.maplibregl-popup-content {
+  font-family: 'Inter', sans-serif;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.maplibregl-popup-tip {
+  border-top-color: white;
+}
+
+.maplibregl-ctrl-group {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.maplibregl-ctrl button {
+  width: 32px;
+  height: 32px;
+}
+
+/* Custom tooltip styles */
+.traffic-tooltip {
+  font-family: 'Inter', sans-serif;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Loading animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Smooth transitions for buttons */
+button {
+  transition: all 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
