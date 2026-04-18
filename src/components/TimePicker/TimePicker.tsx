@@ -4,6 +4,7 @@
  * TimePicker - Component for selecting future time for prediction
  *
  * Allows user to pick a specific future time for traffic prediction
+ * Includes weekday selection for more accurate predictions
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ export interface TimeSelection {
   type: 'preset' | 'custom';
   horizon?: 'now' | '+15' | '+30' | '+60';
   customTime?: Date;
+  weekday?: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
 }
 
 interface TimePickerProps {
@@ -28,6 +30,17 @@ export const TimePicker: React.FC<TimePickerProps> = ({
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [customHour, setCustomHour] = useState(new Date().getHours());
   const [customMinute, setCustomMinute] = useState(new Date().getMinutes());
+  const [selectedWeekday, setSelectedWeekday] = useState<number | undefined>(value.weekday);
+
+  const weekdays = [
+    { value: 0, label: 'Chủ Nhật', short: 'CN' },
+    { value: 1, label: 'Thứ Hai', short: 'T2' },
+    { value: 2, label: 'Thứ Ba', short: 'T3' },
+    { value: 3, label: 'Thứ Tư', short: 'T4' },
+    { value: 4, label: 'Thứ Năm', short: 'T5' },
+    { value: 5, label: 'Thứ Sáu', short: 'T6' },
+    { value: 6, label: 'Thứ Bảy', short: 'T7' },
+  ];
 
   // Get display time
   const getDisplayTime = () => {
@@ -56,8 +69,35 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
   // Handle preset selection
   const handlePresetClick = (horizon: 'now' | '+15' | '+30' | '+60') => {
-    onChange({ type: 'preset', horizon });
+    onChange({
+      type: 'preset',
+      horizon,
+      weekday: selectedWeekday
+    });
     setShowCustomPicker(false);
+  };
+
+  // Handle weekday selection
+  const handleWeekdayChange = (weekday: number) => {
+    const newValue = selectedWeekday === weekday
+      ? undefined // Deselect if clicking the same day
+      : weekday;
+    setSelectedWeekday(newValue);
+
+    // Update the current selection with new weekday
+    if (value.type === 'preset') {
+      onChange({
+        type: 'preset',
+        horizon: value.horizon,
+        weekday: newValue
+      });
+    } else if (value.type === 'custom') {
+      onChange({
+        type: 'custom',
+        customTime: value.customTime,
+        weekday: newValue
+      });
+    }
   };
 
   // Handle custom time submission
@@ -73,7 +113,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
       customTime.setDate(customTime.getDate() + 1);
     }
 
-    onChange({ type: 'custom', customTime });
+    onChange({
+      type: 'custom',
+      customTime,
+      weekday: selectedWeekday
+    });
     setShowCustomPicker(false);
   };
 
@@ -135,6 +179,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#1976d2' }}>
               {getTimeLabel()}
+              {selectedWeekday !== undefined && (
+                <span style={{ color: '#666', fontWeight: 500 }}>
+                  {' ('}{weekdays.find(w => w.value === selectedWeekday)?.short}{')'}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -155,6 +204,67 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         >
           {showCustomPicker ? '✓ Đóng' : '⚙ Chọn giờ'}
         </button>
+      </div>
+
+      {/* Weekday selector */}
+      <div>
+        <div style={{ fontSize: 12, color: '#666', fontWeight: 500, marginBottom: 6 }}>
+          Chọn thứ trong tuần (tùy chọn):
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => handleWeekdayChange(undefined as any)}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: selectedWeekday === undefined
+                ? '2px solid #1976d2'
+                : '1px solid #e0e0e0',
+              background: selectedWeekday === undefined
+                ? '#e3f2fd'
+                : 'white',
+              color: selectedWeekday === undefined
+                ? '#1976d2'
+                : '#666',
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            Hôm nay
+          </button>
+          {weekdays.map((day) => (
+            <button
+              key={day.value}
+              onClick={() => handleWeekdayChange(day.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: selectedWeekday === day.value
+                  ? '2px solid #1976d2'
+                  : '1px solid #e0e0e0',
+                background: selectedWeekday === day.value
+                  ? '#e3f2fd'
+                  : 'white',
+                color: selectedWeekday === day.value
+                  ? '#1976d2'
+                  : '#666',
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {day.short}
+            </button>
+          ))}
+        </div>
+        {selectedWeekday !== undefined && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+            Đã chọn: {weekdays.find(w => w.value === selectedWeekday)?.label}
+          </div>
+        )}
       </div>
 
       {/* Preset buttons */}
@@ -237,7 +347,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                   if (customTime < now) {
                     customTime.setDate(customTime.getDate() + 1);
                   }
-                  onChange({ type: 'custom', customTime });
+                  onChange({
+                    type: 'custom',
+                    customTime,
+                    weekday: selectedWeekday
+                  });
                   setShowCustomPicker(false);
                 }}
                 style={{

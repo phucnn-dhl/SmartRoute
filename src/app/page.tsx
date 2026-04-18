@@ -137,6 +137,12 @@ export default function Home() {
   }, [timeSelection]);
 
   const targetWeekday = useMemo(() => {
+    // If weekday is explicitly selected in TimePicker, use that
+    if (timeSelection.weekday !== undefined) {
+      return timeSelection.weekday;
+    }
+
+    // Otherwise, calculate from timeSelection
     if (timeSelection.type === 'preset') {
       const now = new Date();
       const horizon = timeSelection.horizon || 'now';

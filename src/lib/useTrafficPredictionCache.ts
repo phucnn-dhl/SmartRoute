@@ -26,10 +26,14 @@ export function useTrafficPredictionCache() {
 
   // Generate cache key from time selection
   const getCacheKey = (timeSelection: TimeSelection): string => {
+    const weekdayPart = timeSelection.weekday !== undefined
+      ? `-wd${timeSelection.weekday}`
+      : '';
+
     if (timeSelection.type === 'preset') {
-      return `preset-${timeSelection.horizon}`;
+      return `preset-${timeSelection.horizon}${weekdayPart}`;
     } else {
-      return `custom-${timeSelection.customTime?.getTime()}-${timeSelection.customTime?.getHours()}-${timeSelection.customTime?.getMinutes()}`;
+      return `custom-${timeSelection.customTime?.getTime()}-${timeSelection.customTime?.getHours()}-${timeSelection.customTime?.getMinutes()}${weekdayPart}`;
     }
   };
 

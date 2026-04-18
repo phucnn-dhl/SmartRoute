@@ -284,18 +284,25 @@ function simulateLOSBatch(
   timeSelection: TimeSelection
 ): TrafficSegment[] {
   let targetTime: Date;
+  let targetWeekday: number;
 
   if (timeSelection.type === 'preset') {
     const now = new Date();
     const horizon = timeSelection.horizon || 'now';
     const offsetMinutes = horizon === 'now' ? 0 : parseInt(horizon.slice(1), 10);
     targetTime = new Date(now.getTime() + offsetMinutes * 60 * 1000);
+    targetWeekday = timeSelection.weekday !== undefined
+      ? timeSelection.weekday
+      : targetTime.getDay();
   } else {
     targetTime = timeSelection.customTime || new Date();
+    targetWeekday = timeSelection.weekday !== undefined
+      ? timeSelection.weekday
+      : targetTime.getDay();
   }
 
   const hour = targetTime.getHours();
-  const weekday = targetTime.getDay();
+  const weekday = targetWeekday;
   const isWeekend = weekday === 0 || weekday === 6;
   const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
   const isNight = hour >= 22 || hour <= 6;
