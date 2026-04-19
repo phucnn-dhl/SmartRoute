@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export interface TimeSelection {
   type: 'preset' | 'custom';
@@ -20,17 +21,20 @@ interface TimePickerProps {
   value: TimeSelection;
   onChange: (value: TimeSelection) => void;
   loading?: boolean;
+  collapsed?: boolean;
 }
 
 export const TimePicker: React.FC<TimePickerProps> = ({
   value,
   onChange,
   loading = false,
+  collapsed = false,
 }) => {
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [customHour, setCustomHour] = useState(new Date().getHours());
   const [customMinute, setCustomMinute] = useState(new Date().getMinutes());
   const [selectedWeekday, setSelectedWeekday] = useState<number | undefined>(value.weekday);
+  const isMobile = useIsMobile();
 
   const weekdays = [
     { value: 0, label: 'Chủ Nhật', short: 'CN' },
@@ -151,6 +155,31 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     return getDisplayTime();
   };
 
+  if (collapsed) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 10,
+          left: 10,
+          background: 'white',
+          padding: '6px 12px',
+          borderRadius: 20,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
+          zIndex: 1000,
+          fontSize: 12,
+          fontWeight: 600,
+          color: '#1976d2',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        <span>⏰</span> {getTimeLabel()}
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -166,7 +195,8 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        minWidth: 400,
+        minWidth: isMobile ? 0 : 400,
+        width: isMobile ? 'calc(100vw - 32px)' : undefined,
       }}
     >
       {/* Current selection display */}

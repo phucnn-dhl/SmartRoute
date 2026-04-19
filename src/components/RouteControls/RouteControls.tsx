@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Coordinate, PickingMode } from '@/lib/routing';
 
 interface RouteControlsProps {
@@ -36,6 +37,8 @@ export const RouteControls: React.FC<RouteControlsProps> = ({
   onRequestRoute,
   onClearRoute,
 }) => {
+  const isMobile = useIsMobile();
+
   return (
     <div
       style={{
@@ -44,7 +47,7 @@ export const RouteControls: React.FC<RouteControlsProps> = ({
         left: hasRoute ? 10 : '50%',
         transform: hasRoute ? 'none' : 'translateX(-50%)',
         zIndex: 1600,
-        width: 'min(560px, calc(100vw - 24px))',
+        width: isMobile ? 'calc(100vw - 16px)' : 'min(560px, calc(100vw - 24px))',
         background: 'rgba(255, 255, 255, 0.96)',
         borderRadius: 16,
         boxShadow: '0 10px 30px rgba(15, 23, 42, 0.18)',
