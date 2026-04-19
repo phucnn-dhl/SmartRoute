@@ -26,7 +26,7 @@ export async function fetchPhotonResults(
     return (data.features || []).map((f: PhotonFeature) => ({
       type: 'geocoder' as const,
       feature: f,
-      label: f.properties.name || f.properties.street || f.properties.city || 'Unknown',
+      label: f.properties.name || f.properties.street || f.properties.city || 'Không xác định',
       sublabel: buildAddress(f.properties),
     }));
   } catch (e) {

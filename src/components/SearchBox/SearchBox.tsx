@@ -213,11 +213,11 @@ const ExploreBar = ({
       value={input}
       onChange={(e) => onInput(e.target.value)}
       onFocus={onFocus}
-      placeholder="Search places, streets, or areas..."
+      placeholder="Tìm kiếm địa điểm, đường phố, hoặc khu vực..."
       style={styles.input}
     />
     {input && <button type="button" onClick={() => onInput('')} style={styles.clearBtn}>{'\u00D7'}</button>}
-    <button type="button" onClick={onRouteClick} style={styles.routeBtn} title="Directions">
+    <button type="button" onClick={onRouteClick} style={styles.routeBtn} title="Chỉ đường">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
     </button>
   </div>
@@ -263,7 +263,7 @@ const RouteBar = ({
       <button type="button" onClick={onExit} style={styles.backBtn}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </button>
-      <span style={styles.routeTitle}>Route</span>
+      <span style={styles.routeTitle}>Tìm đường</span>
     </div>
     <div style={styles.routeFields}>
       <RouteField
@@ -274,7 +274,7 @@ const RouteBar = ({
         onFocus={onOriginFocus}
         onClear={onOriginClear}
         isActive={activeField === 'origin'}
-        placeholder="Enter origin..."
+        placeholder="Nhập điểm xuất phát..."
       />
       <RouteField
         color="#dc2626"
@@ -284,7 +284,7 @@ const RouteBar = ({
         onFocus={onDestFocus}
         onClear={onDestClear}
         isActive={activeField === 'destination'}
-        placeholder="Enter destination..."
+        placeholder="Nhập điểm đến..."
       />
     </div>
     <div style={styles.routeActions}>
@@ -298,10 +298,10 @@ const RouteBar = ({
           cursor: !canSubmit || routeLoading ? 'not-allowed' : 'pointer',
         }}
       >
-        {routeLoading ? 'Getting Route...' : 'Get Route'}
+        {routeLoading ? 'Đang tìm đường...' : 'Tìm đường'}
       </button>
       <button type="button" onClick={onClearRoute} style={styles.secondaryActionBtn}>
-        Clear
+        Xóa
       </button>
     </div>
   </div>
@@ -387,10 +387,10 @@ const ResultsList = ({
         </div>
       ))}
       {options.some((o) => o.type === 'loader') && (
-        <div style={styles.loadingRow}><Spinner /> Searching...</div>
+        <div style={styles.loadingRow}><Spinner /> Đang tìm kiếm...</div>
       )}
       {!loading && options.length === 0 && input.trim() && (
-        <div style={styles.noResults}>No results for &quot;{input}&quot;</div>
+        <div style={styles.noResults}>Không có kết quả cho &quot;{input}&quot;</div>
       )}
     </>
   );

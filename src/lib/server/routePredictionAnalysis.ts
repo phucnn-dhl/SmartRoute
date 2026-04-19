@@ -509,27 +509,27 @@ function buildSummary(params: {
 }) {
   const whenLabel =
     params.departureOffsetMinutes === 0
-      ? 'if you leave now'
-      : `for a departure in +${params.departureOffsetMinutes} minutes`;
+      ? 'nếu bạn xuất phát ngay bây giờ'
+      : `cho xuất phát sau +${params.departureOffsetMinutes} phút`;
 
   const delayMinutes = params.delaySeconds > 0 ? Math.max(1, Math.round(params.delaySeconds / 60)) : 0;
 
   // Handle low coverage case
   if (params.coverageLevel === 'low') {
-    return `Limited traffic prediction coverage for this route. Prediction confidence is low for long-distance analysis. ${params.delaySeconds > 0 ? `Some delays possible (+${delayMinutes} min).` : 'Current data shows minimal delays.'}`;
+    return `Độ phủ dữ liệu dự báo giao thông cho tuyến đường này còn hạn chế. Độ tin cậy dự báo thấp cho phân tích đường dài. ${params.delaySeconds > 0 ? `Có thể gặp độ trễ (+${delayMinutes} phút).` : 'Dữ liệu hiện tại cho thấy ít độ trễ.'}`;
   }
 
   if (params.coverageLevel === 'partial' && params.riskLevel === 'low') {
-    return `Partial traffic data coverage. Based on available segments, congestion appears low ${whenLabel}, but prediction may not reflect conditions on all parts of the route.`;
+    return `Độ phủ dữ liệu giao thông một phần. Dựa trên các đoạn đường có sẵn, tắc nghẽn có vẻ thấp ${whenLabel}, nhưng dự báo có thể không phản ánh đúng điều kiện trên toàn bộ tuyến đường.`;
   }
 
   if (params.riskLevel === 'high') {
-    return `High predicted congestion ${whenLabel}. Expect roughly +${delayMinutes} min delay with ${params.highRiskCount} severe bottlenecks on the route.`;
+    return `Tắc nghẽn dự báo cao ${whenLabel}. Dự kiến độ trễ khoảng +${delayMinutes} phút với ${params.highRiskCount} điểm nghẽn nghiêm trọng trên tuyến đường.`;
   }
 
   if (params.riskLevel === 'medium') {
-    return `Moderate congestion ${whenLabel}. The route may slow by about +${delayMinutes} min with ${params.mediumRiskCount + params.highRiskCount} pressure points nearby.`;
+    return `Tắc nghẽn trung bình ${whenLabel}. Tuyến đường có thể chậm thêm khoảng +${delayMinutes} phút với ${params.mediumRiskCount + params.highRiskCount} điểm áp lực gần đó.`;
   }
 
-  return `Low congestion ${whenLabel}. Only minor slowdowns are predicted on this route.`;
+  return `Tắc nghẽn thấp ${whenLabel}. Chỉ có một số điểm chậm nhỏ được dự báo trên tuyến đường này.`;
 }

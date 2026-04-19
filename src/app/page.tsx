@@ -195,7 +195,7 @@ export default function Home() {
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>SmartRoute</h1>
             <p style={{ fontSize: 13, opacity: 0.9, margin: '2px 0 0 0' }}>
-              Viewport-based traffic prediction for HCMC
+              Dự báo giao thông theo khung nhìn cho TP.HCM
             </p>
           </div>
           {isPrediction && (
@@ -209,7 +209,7 @@ export default function Home() {
                 backdropFilter: 'blur(10px)',
               }}
             >
-              Prediction mode
+              Chế độ dự báo
             </div>
           )}
         </div>
@@ -225,7 +225,7 @@ export default function Home() {
               backdropFilter: 'blur(10px)',
             }}
           >
-            {loadedCount.toLocaleString()} visible segments
+            {loadedCount.toLocaleString()} đoạn đường
           </div>
         </div>
       </div>
@@ -297,7 +297,7 @@ export default function Home() {
               marginBottom: 16,
             }}
           />
-          <div style={{ fontSize: 16, fontWeight: 600 }}>Loading viewport data...</div>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>Đang tải dữ liệu bản đồ...</div>
           <style>{`
             @keyframes spin {
               0% { transform: rotate(0deg); }
@@ -335,7 +335,7 @@ export default function Home() {
               animation: 'spin 1s linear infinite',
             }}
           />
-          Refreshing current viewport...
+          Đang làm mới dữ liệu...
         </div>
       )}
 

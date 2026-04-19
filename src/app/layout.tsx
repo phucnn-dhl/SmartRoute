@@ -3,7 +3,7 @@ import './globals.css';
 import './map.css';
 
 export const metadata: Metadata = {
-  title: 'SmartRoute - Traffic Prediction Map',
+  title: 'SmartRoute - Bản đồ dự báo giao thông',
   description: 'Dự báo tình trạng giao thông TP.HCM',
 };
 

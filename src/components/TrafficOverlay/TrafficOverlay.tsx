@@ -18,12 +18,12 @@ const LOS_COLORS = {
 };
 
 const LOS_LABELS = {
-  A: 'Thong thoang',
-  B: 'Kha tot',
-  C: 'On dinh',
-  D: 'Bat dau ket',
-  E: 'Ket xe',
-  F: 'Ket cung',
+  A: 'Thông thoáng',
+  B: 'Khá tốt',
+  C: 'Ổn định',
+  D: 'Bắt đầu kẹt',
+  E: 'Kẹt xe',
+  F: 'Kẹt cứng',
 };
 
 export interface TrafficSegment {
@@ -270,10 +270,10 @@ function buildPopupHtml(props: SegmentFeatureProperties) {
         <div style="font-size: 14px; font-weight: 600;">${props.label}</div>
       </div>
       <div style="font-size: 12px; color: #4b5563; line-height: 1.6;">
-        <div>Confidence: ${(props.confidence * 100).toFixed(0)}%</div>
-        <div>Street level: ${props.street_level}</div>
-        <div>Max velocity: ${props.max_velocity} km/h</div>
-        <div>Length: ${Math.round(props.length)} m</div>
+        <div>Độ tin cậy: ${(props.confidence * 100).toFixed(0)}%</div>
+        <div>Cấp đường: ${props.street_level}</div>
+        <div>Vận tốc tối đa: ${props.max_velocity} km/h</div>
+        <div>Chiều dài: ${Math.round(props.length)} m</div>
       </div>
     </div>
   `;
@@ -385,7 +385,7 @@ const LOSLegend: React.FC<{ isPrediction?: boolean }> = ({ isPrediction = false 
       }}
     >
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>
-        {isPrediction ? 'Prediction LOS' : 'Current LOS'}
+        {isPrediction ? 'LOS Dự báo' : 'LOS Hiện tại'}
       </div>
 
       {Object.entries(LOS_COLORS).map(([los, color]) => (
@@ -423,8 +423,8 @@ const StatsPanel: React.FC<{
   const getTimeLabel = () => {
     if (timeSelection.type === 'preset') {
       const horizon = timeSelection.horizon || 'now';
-      if (horizon === 'now') return 'Hien tai';
-      return `+${horizon.slice(1)} phut`;
+      if (horizon === 'now') return 'Hiện tại';
+      return `+${horizon.slice(1)} phút`;
     }
 
     return timeSelection.customTime?.toLocaleTimeString('vi-VN', {
@@ -448,22 +448,22 @@ const StatsPanel: React.FC<{
         minWidth: 240,
       }}
     >
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Traffic Stats</div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Thống kê giao thông</div>
 
       <div style={{ padding: '12px', background: '#f8f9fa', borderRadius: 10, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: '#666', marginBottom: 6, fontWeight: 500 }}>Time</div>
+        <div style={{ fontSize: 12, color: '#666', marginBottom: 6, fontWeight: 500 }}>Thời gian</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#1f2937' }}>{getTimeLabel()}</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Visible segments</div>
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Đoạn đường hiển thị</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: '#1976d2' }}>
             {stats.total.toLocaleString()}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Congested</div>
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Đang kẹt</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>
             {stats.congested.toLocaleString()}
           </div>
@@ -471,7 +471,7 @@ const StatsPanel: React.FC<{
       </div>
 
       <div style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>
-        Congested ratio: <strong>{stats.congestedPercent}%</strong>
+        Tỷ lệ kẹt xe: <strong>{stats.congestedPercent}%</strong>
       </div>
 
       {['A', 'B', 'C', 'D', 'E', 'F'].map((los) => {

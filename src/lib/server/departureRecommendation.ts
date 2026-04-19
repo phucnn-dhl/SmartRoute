@@ -110,39 +110,39 @@ function buildTradeOff(
 ) {
   if (option.departureOffsetMinutes === recommendedOffset) {
     return option.departureOffsetMinutes === 0
-      ? 'Best overall balance if you leave now.'
-      : `Best overall balance if you leave in +${option.departureOffsetMinutes} min.`;
+      ? 'Cân bằng tốt nhất nếu bạn xuất phát ngay bây giờ.'
+      : `Cân bằng tốt nhất nếu bạn xuất phát sau +${option.departureOffsetMinutes} phút.`;
   }
 
   const routeDelayMinutes = Math.max(0, Math.round(option.delaySeconds / 60));
 
   if (option.riskLevel === 'high') {
     return routeDelayMinutes > 0
-      ? `Fast to depart, but expect roughly +${routeDelayMinutes} min extra delay and higher volatility.`
-      : 'Leaves sooner, but carries higher congestion risk than the recommended option.';
+      ? `Xuất phát nhanh, nhưng dự kiến thêm khoảng +${routeDelayMinutes} phút độ trễ và rủi ro cao hơn.`
+      : 'Xuất phát sớm hơn, nhưng mang rủi ro tắc nghẽn cao hơn lựa chọn được khuyến nghị.';
   }
 
   if (option.riskLevel === 'low') {
     return option.departureOffsetMinutes > recommendedOffset
-      ? 'More stable traffic outlook, but slower overall than the recommended departure.'
-      : 'Low risk, but not the best ETA among the available departure times.';
+      ? 'Tình trạng giao thông ổn định hơn, nhưng chậm hơn so với thời gian xuất phát được khuyến nghị.'
+      : 'Rủi ro thấp, nhưng không phải thời gian đến dự kiến tốt nhất trong các lựa chọn.';
   }
 
-  return 'Balanced option, but not as strong overall as the recommended departure time.';
+  return 'Lựa chọn cân bằng, nhưng không tối ưu bằng thời gian xuất phát được khuyến nghị.';
 }
 
 function buildRecommendationSummary(options: DepartureRecommendationOption[]) {
   const recommended = options.find((option) => option.recommended) || options[0];
   if (!recommended) {
-    return 'No departure recommendation is available.';
+    return 'Không có khuyến nghị thời gian xuất phát.';
   }
 
   const bestEtaMinutes = Math.max(1, Math.round(recommended.predictedDurationSeconds / 60));
   const offsetLabel =
     recommended.departureOffsetMinutes === 0
-      ? 'now'
-      : `in +${recommended.departureOffsetMinutes} min`;
+      ? 'bây giờ'
+      : `sau +${recommended.departureOffsetMinutes} phút`;
 
-  const riskLabel = recommended.riskLevel;
-  return `Best time to leave is ${offsetLabel}. Predicted ETA is about ${bestEtaMinutes} min with ${riskLabel} congestion risk.`;
+  const riskLabel = recommended.riskLevel === 'low' ? 'thấp' : recommended.riskLevel === 'medium' ? 'trung bình' : 'cao';
+  return `Thời gian xuất phát tốt nhất là ${offsetLabel}. Thời gian đến dự kiến khoảng ${bestEtaMinutes} phút với rủi ro tắc nghẽn ${riskLabel}.`;
 }
