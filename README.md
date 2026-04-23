@@ -186,4 +186,4 @@ MIT License - xem file LICENSE để biết chi tiết.
 
 ---
 
-**Đội ngũ phát triển**: Underrated - WebDev Adventure 2026
+**Đội ngũ phát triển**: Underrated.
