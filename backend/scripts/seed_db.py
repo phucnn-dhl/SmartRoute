@@ -9,12 +9,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import init_db, get_db, DB_PATH, LOS_ENCODING
 
-# Original HCMC data (84K segments, 577K nodes)
-ORIG_NODES_PATH = Path(r"C:\Users\Admin\Desktop\GIT CLONE\webdev-vong-2\traffic-map-poc\public\data\nodes.csv")
-ORIG_SEGMENTS_PATH = Path(r"C:\Users\Admin\Desktop\GIT CLONE\webdev-vong-2\traffic-map-poc\public\data\segments.csv")
-
-# Research dataset (10K segments with LOS data)
-RESEARCH_PATH = Path(r"C:\Users\Admin\Desktop\GIT CLONE\webdev-vong-2\ref app\data traffic hcm\data2\train.csv")
+# Data directory (relative to project root)
+DATA_DIR = Path(__file__).parent.parent / "data"
+ORIG_NODES_PATH = DATA_DIR / "nodes.csv"
+ORIG_SEGMENTS_PATH = DATA_DIR / "segments.csv"
+RESEARCH_PATH = DATA_DIR / "research_train.csv"
 
 
 def seed_original_nodes(conn):

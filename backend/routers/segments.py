@@ -4,6 +4,7 @@ from typing import Optional
 
 from db.database import get_db
 from models.xgboost_model import TrafficModel
+from models.preprocessor import heuristic_predict
 from schemas.responses import SegmentsResponse, SegmentResponse
 
 router = APIRouter()
@@ -32,10 +33,6 @@ def get_segments(
     now = datetime.now()
     hour = hour if hour is not None else now.hour
     weekday = weekday if weekday is not None else now.weekday()
-    # Python weekday: Mon=0, dataset: needs mapping
-    # Dataset uses: Sunday=0, Monday=1, ..., Saturday=6
-    # Python: Monday=0, ..., Sunday=6
-    # Convert: dataset_weekday = (python_weekday + 1) % 7
     ds_weekday = (weekday + 1) % 7
 
     month = month or now.month
@@ -58,6 +55,17 @@ def get_segments(
 
         rows = conn.execute(query, params).fetchall()
 
+        # Batch predict all segments at once
+        predictions = {}
+        if includePrediction and model.model is not None and rows:
+            try:
+                predictions = model.predict_viewport(
+                    conn, rows, hour, minute, ds_weekday,
+                    month, day_of_month, "2021-04-20",
+                )
+            except Exception:
+                predictions = {}
+
         segments = []
         for row in rows:
             seg = SegmentResponse(
@@ -72,16 +80,12 @@ def get_segments(
                 length=row['length'],
             )
 
-            if includePrediction and model.model is not None:
-                try:
-                    pred = model.predict_one(
-                        conn, row['segment_id'], row,
-                        hour, minute, ds_weekday,
-                        month, day_of_month, "2021-04-20",
-                    )
-                    seg.los = pred['los']
-                    seg.confidence = pred['confidence']
-                except Exception:
+            if includePrediction:
+                pred = predictions.get(row['segment_id'])
+                if pred:
+                    seg.los = pred.get('los', 'C')
+                    seg.confidence = pred.get('confidence', 0.0)
+                else:
                     seg.los = 'C'
                     seg.confidence = 0.0
 

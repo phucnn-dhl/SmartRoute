@@ -54,6 +54,8 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_segments_bbox
                 ON segments(lat_snode, long_snode);
+            CREATE INDEX IF NOT EXISTS idx_segments_bbox_end
+                ON segments(lat_enode, long_enode);
             CREATE INDEX IF NOT EXISTS idx_segments_xgb
                 ON segments(has_xgboost_data);
 
@@ -70,6 +72,8 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_th_seg_time
                 ON traffic_history(segment_id, date, hour, minute);
+            CREATE INDEX IF NOT EXISTS idx_th_seg_id
+                ON traffic_history(segment_id);
 
             CREATE TABLE IF NOT EXISTS historical_stats (
                 segment_id INTEGER NOT NULL,

@@ -8,7 +8,9 @@ from typing import Optional
 import numpy as np
 import xgboost as xgb
 
-from models.preprocessor import build_features, heuristic_predict, FULL_FEATURES
+from models.preprocessor import (
+    build_features, build_features_batch, heuristic_predict, FULL_FEATURES,
+)
 
 ARTIFACTS_DIR = Path(__file__).parent.parent / "artifacts"
 
@@ -50,7 +52,6 @@ class TrafficModel:
                     segment: sqlite3.Row, hour: int, minute: int,
                     weekday: int, month: int, day_of_month: int,
                     date: str):
-        # Check if segment has XGBoost data
         has_xgb = segment['has_xgboost_data'] if 'has_xgboost_data' in segment.keys() else False
 
         if not has_xgb or self.model is None:
@@ -71,6 +72,55 @@ class TrafficModel:
             }
         except Exception:
             return heuristic_predict(segment, hour, weekday)
+
+    def predict_viewport(self, conn: sqlite3.Connection, rows: list,
+                         hour: int, minute: int, weekday: int,
+                         month: int, day_of_month: int, date: str):
+        """Batch predict for all segments in a viewport.
+        Returns dict: segment_id -> {los, confidence}."""
+        if not rows or self.model is None:
+            return {}
+
+        # Split into XGBoost vs heuristic groups
+        xgb_segments = []
+        heuristic_results = {}
+
+        for row in rows:
+            has_xgb = row['has_xgboost_data'] if 'has_xgboost_data' in row.keys() else False
+            if has_xgb:
+                xgb_segments.append(row)
+            else:
+                pred = heuristic_predict(row, hour, weekday)
+                heuristic_results[row['segment_id']] = pred
+
+        if not xgb_segments:
+            return heuristic_results
+
+        # Batch build features for all XGBoost segments
+        segment_ids, X = build_features_batch(
+            conn, xgb_segments, hour, minute, weekday,
+            month, day_of_month, date,
+            self.street_type_map, self.velocity_medians,
+        )
+
+        if len(X) == 0:
+            return heuristic_results
+
+        # Single batch predict
+        preds = self.model.predict(X)
+        probas = self.model.predict_proba(X)
+
+        xgb_results = {}
+        for i, sid in enumerate(segment_ids):
+            pred = int(preds[i])
+            xgb_results[sid] = {
+                'los': LOS_DECODING[pred],
+                'los_encoded': pred,
+                'confidence': float(probas[i][pred]),
+            }
+
+        heuristic_results.update(xgb_results)
+        return heuristic_results
 
     def predict_batch(self, conn: sqlite3.Connection, segment_ids: list,
                       hour: int, minute: int, weekday: int,

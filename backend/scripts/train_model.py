@@ -98,7 +98,7 @@ def create_features(df):
                 result.append(x.iloc[i])
             else:
                 window_data = x.iloc[i - 6 + 1:i + 1].values
-                result.append(int(mode(window_data, keepdims=True).mode))
+                result.append(int(mode(window_data, keepdims=True).mode[0]))
         return pd.Series(result, index=x.index)
 
     df['LOS_encoded_rolling_mode_6'] = (
