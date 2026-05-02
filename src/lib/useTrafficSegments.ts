@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { TrafficSegment } from '@/components/TrafficOverlay';
+import { TimeSelection } from '@/components/TimePicker';
 
 interface UseTrafficSegmentsOptions {
   minZoomForDetails?: number;
@@ -16,9 +17,19 @@ interface TrafficSegmentsState {
 
 const LOW_ZOOM_THRESHOLD = 12;
 
+function getTimeKey(timeSelection: TimeSelection): string {
+  if (timeSelection.type === 'preset') {
+    return timeSelection.horizon || 'now';
+  }
+  const t = timeSelection.customTime;
+  if (!t) return 'custom';
+  const wd = timeSelection.weekday !== undefined ? timeSelection.weekday : t.getDay();
+  return `custom-${t.getHours()}-${t.getMinutes()}-${wd}`;
+}
+
 export function useTrafficSegments(
   map: maplibregl.Map | null,
-  _timeSelection: unknown,
+  timeSelection: TimeSelection,
   options: UseTrafficSegmentsOptions = {}
 ) {
   const { minZoomForDetails = 14 } = options;
@@ -31,8 +42,14 @@ export function useTrafficSegments(
 
   const loadingRef = useRef(false);
   const lastRequestKeyRef = useRef('');
+  const timeSelectionRef = useRef(timeSelection);
 
-  const boundsToKey = useCallback((bounds: maplibregl.LngLatBoundsLike, zoom: number) => {
+  // Keep ref in sync
+  useEffect(() => {
+    timeSelectionRef.current = timeSelection;
+  }, [timeSelection]);
+
+  const boundsToKey = useCallback((bounds: maplibregl.LngLatBoundsLike, zoom: number, timeSel: TimeSelection) => {
     const [[minLng, minLat], [maxLng, maxLat]] = bounds as [[number, number], [number, number]];
     return [
       minLng.toFixed(4),
@@ -40,6 +57,7 @@ export function useTrafficSegments(
       maxLng.toFixed(4),
       maxLat.toFixed(4),
       zoom.toFixed(1),
+      getTimeKey(timeSel),
     ].join(',');
   }, []);
 
@@ -56,7 +74,8 @@ export function useTrafficSegments(
   ) => {
     if (!map || loadingRef.current) return;
 
-    const requestKey = boundsToKey(bounds, zoom);
+    const ts = timeSelectionRef.current;
+    const requestKey = boundsToKey(bounds, zoom, ts);
     if (!force && requestKey === lastRequestKeyRef.current) return;
 
     const [[minLng, minLat], [maxLng, maxLat]] = bounds as [[number, number], [number, number]];
@@ -74,6 +93,23 @@ export function useTrafficSegments(
       if (streetLevel) {
         params.set('streetLevelMax', streetLevel);
       }
+
+      // Add time parameters for XGBoost predictions
+      let targetTime: Date;
+      if (ts.type === 'preset') {
+        const now = new Date();
+        const horizon = ts.horizon || 'now';
+        const offsetMinutes = horizon === 'now' ? 0 : parseInt(horizon.slice(1), 10);
+        targetTime = new Date(now.getTime() + offsetMinutes * 60 * 1000);
+      } else {
+        targetTime = ts.customTime || new Date();
+      }
+      params.set('hour', String(targetTime.getHours()));
+      params.set('minute', String(targetTime.getMinutes()));
+      const weekday = ts.weekday !== undefined
+        ? ts.weekday
+        : targetTime.getDay();
+      params.set('weekday', String(weekday));
 
       const response = await fetch(`/api/segments-hcmc?${params.toString()}`);
       if (!response.ok) {
@@ -95,6 +131,20 @@ export function useTrafficSegments(
       loadingRef.current = false;
     }
   }, [boundsToKey, getStreetLevelParam, map]);
+
+  // Re-fetch when timeSelection changes
+  useEffect(() => {
+    if (!map || !state.segments.length) return;
+
+    const zoom = map.getZoom();
+    const bounds = map.getBounds();
+    const boundsArray: maplibregl.LngLatBoundsLike = [
+      [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
+      [bounds.getNorthEast().lng, bounds.getNorthEast().lat],
+    ];
+
+    loadByBounds(boundsArray, zoom, false);
+  }, [timeSelection, map, loadByBounds]);
 
   const updateZoom = useCallback((zoom: number) => {
     setState(prev => ({ ...prev, currentZoom: zoom }));

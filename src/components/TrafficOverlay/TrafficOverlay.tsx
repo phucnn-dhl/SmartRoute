@@ -68,6 +68,16 @@ export const TrafficOverlay: React.FC<TrafficOverlayProps> = ({
   const { getCachedPrediction } = useTrafficPredictionCache();
 
   const segmentsWithLOS = useMemo(() => {
+    // If segments already have LOS from XGBoost API, use them directly
+    const hasAPILos = segments.length > 0 && segments.some(s => s.los !== undefined);
+    if (hasAPILos) {
+      return segments.map(s => ({
+        ...s,
+        los: s.los || 'C',
+        confidence: s.confidence || 0.5,
+      }));
+    }
+    // Fallback to heuristic
     return getCachedPrediction(segments, timeSelection, simulateLOSBatch);
   }, [segments, timeSelection, getCachedPrediction]);
 

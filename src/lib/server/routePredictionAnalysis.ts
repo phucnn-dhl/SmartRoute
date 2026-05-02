@@ -6,6 +6,7 @@ import {
   RouteData,
 } from '@/lib/routing';
 import { getTrafficSegmentsWithinBounds, TrafficSegmentRecord } from './trafficData';
+import { fetchPredictions } from './apiClient';
 
 const BBOX_PADDING_DEGREES = 0.0035; // ~350m base padding
 const BBOX_PADDING_LONG_ROUTE_DEGREES = 0.012; // ~1.3km padding for long routes
@@ -45,15 +46,38 @@ export async function analyzeRoutePrediction(
 
   // SAMPLE-BASED MATCHING: Sample points along route and find nearest segments
   const samplePoints = sampleRoutePoints(route.geometry.coordinates, SAMPLE_INTERVAL_METERS);
-  const matchedSegments = findNearestSegmentsForSamples(
+
+  // First pass: find nearby segments by distance only (no prediction yet)
+  const distanceMatchedSegments = findNearestSegmentsByDistance(
     samplePoints,
     nearbySegments,
     route,
-    departureOffsetMinutes,
-    maxSegments,
-    targetHour,
-    targetWeekday
+    maxSegments
   );
+
+  // Batch predict using XGBoost API
+  const predictions = await batchPredictSegments(distanceMatchedSegments, departureOffsetMinutes, targetHour, targetWeekday);
+
+  // Score segments with XGBoost predictions
+  const matchedSegments = distanceMatchedSegments
+    .map(({ segment, distance }) => {
+      const pred = predictions.get(segment.segment_id);
+      const los = pred?.los || 'C';
+      const confidence = pred?.confidence || 0.5;
+      const travelTimeFactor = losToTravelFactor(los);
+      const baseSpeedMetersPerSecond = Math.max((segment.max_velocity || 20) / 3.6, 1.8);
+      const baseDurationSeconds = Math.max((segment.length || 30) / baseSpeedMetersPerSecond, 4);
+      const predictedDelaySeconds = Math.round(baseDurationSeconds * (travelTimeFactor - 1));
+
+      return {
+        ...segment,
+        los: los as PredictedSegmentScore['los'],
+        confidence,
+        travelTimeFactor,
+        predictedDelaySeconds,
+        distanceToRouteMeters: distance,
+      };
+    });
 
   // Calculate coverage metrics
   const sampledPointCount = samplePoints.length;
@@ -162,6 +186,140 @@ function scoreSegmentAgainstRoute(
     predictedDelaySeconds,
     distanceToRouteMeters,
   };
+}
+
+async function batchPredictSegments(
+  segments: { segment: TrafficSegmentRecord; distance: number }[],
+  departureOffsetMinutes: DepartureOffsetMinutes,
+  targetHour?: number,
+  targetWeekday?: number
+): Promise<Map<number, { los: string; confidence: number }>> {
+  const result = new Map<number, { los: string; confidence: number }>();
+
+  if (segments.length === 0) return result;
+
+  const hour = targetHour ?? (() => {
+    const t = new Date(Date.now() + departureOffsetMinutes * 60 * 1000);
+    return t.getHours();
+  })();
+  const weekday = targetWeekday ?? (() => {
+    const t = new Date(Date.now() + departureOffsetMinutes * 60 * 1000);
+    return t.getDay();
+  })();
+
+  try {
+    const segmentIds = segments.map(s => s.segment.segment_id);
+    const predictions = await fetchPredictions({
+      segment_ids: segmentIds,
+      hour,
+      minute: 0,
+      weekday,
+    });
+
+    for (const pred of predictions) {
+      if (!pred.error) {
+        result.set(pred.segment_id, { los: pred.los, confidence: pred.confidence });
+      }
+    }
+  } catch (error) {
+    console.error('Batch prediction failed, using heuristic fallback:', error);
+    for (const { segment } of segments) {
+      const fallback = predictSegmentTraffic(segment, departureOffsetMinutes, targetHour, targetWeekday);
+      result.set(segment.segment_id, { los: fallback.los, confidence: fallback.confidence });
+    }
+  }
+
+  return result;
+}
+
+function losToTravelFactor(los: string): number {
+  switch (los) {
+    case 'A': return 1.02;
+    case 'B': return 1.08;
+    case 'C': return 1.20;
+    case 'D': return 1.50;
+    case 'E': return 2.10;
+    case 'F': return 3.00;
+    default: return 1.20;
+  }
+}
+
+function findNearestSegmentsByDistance(
+  samplePoints: [number, number][],
+  nearbySegments: TrafficSegmentRecord[],
+  route: RouteData,
+  maxSegments: number
+): { segment: TrafficSegmentRecord; distance: number }[] {
+  if (nearbySegments.length === 0 || samplePoints.length === 0) {
+    return [];
+  }
+
+  const cellSize = SEGMENT_MATCH_THRESHOLD_METERS;
+  const latPerMeter = 1 / 110540;
+  const avgLat = samplePoints.reduce((sum, p) => sum + p[1], 0) / samplePoints.length;
+  const lngPerMeter = 1 / (111320 * Math.cos((avgLat * Math.PI) / 180));
+
+  const segmentRefs = nearbySegments.map((seg) => ({
+    start: [seg.s_lng, seg.s_lat] as [number, number],
+    end: [seg.e_lng, seg.e_lat] as [number, number],
+    mid: [(seg.s_lng + seg.e_lng) / 2, (seg.s_lat + seg.e_lat) / 2] as [number, number],
+  }));
+
+  const grid = new Map<string, number[]>();
+  for (let i = 0; i < nearbySegments.length; i++) {
+    const refs = segmentRefs[i];
+    const cells = new Set<string>();
+    for (const point of [refs.start, refs.end, refs.mid]) {
+      const latCell = Math.floor(point[1] / (cellSize * latPerMeter));
+      const lngCell = Math.floor(point[0] / (cellSize * lngPerMeter));
+      cells.add(`${latCell},${lngCell}`);
+    }
+    for (const key of cells) {
+      let cell = grid.get(key);
+      if (!cell) {
+        cell = [];
+        grid.set(key, cell);
+      }
+      cell.push(i);
+    }
+  }
+
+  const segmentMatches = new Map<number, { segment: TrafficSegmentRecord; distance: number }>();
+
+  for (const samplePoint of samplePoints) {
+    const latCell = Math.floor(samplePoint[1] / (cellSize * latPerMeter));
+    const lngCell = Math.floor(samplePoint[0] / (cellSize * lngPerMeter));
+
+    let bestDist = SEGMENT_MATCH_THRESHOLD_METERS;
+    let bestIndex = -1;
+
+    for (let di = -1; di <= 1; di++) {
+      for (let dj = -1; dj <= 1; dj++) {
+        const cell = grid.get(`${latCell + di},${lngCell + dj}`);
+        if (!cell) continue;
+        for (const segIdx of cell) {
+          const refs = segmentRefs[segIdx];
+          const dist = getDistanceToSegment(samplePoint, refs.start, refs.end);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIndex = segIdx;
+          }
+        }
+      }
+    }
+
+    if (bestIndex >= 0) {
+      const seg = nearbySegments[bestIndex];
+      const existing = segmentMatches.get(seg.segment_id);
+      if (!existing || bestDist < existing.distance) {
+        segmentMatches.set(seg.segment_id, { segment: seg, distance: bestDist });
+      }
+    }
+  }
+
+  return Array.from(segmentMatches.values())
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, maxSegments);
 }
 
 function predictSegmentTraffic(segment: TrafficSegmentRecord, departureOffsetMinutes: DepartureOffsetMinutes, targetHour?: number, targetWeekday?: number) {
