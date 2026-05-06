@@ -5,6 +5,16 @@ const API_BASE = process.env.TRAFFIC_API_URL || 'http://localhost:8000';
 export interface SegmentWithPrediction extends TrafficSegmentRecord {
   los?: string;
   confidence?: number;
+  prediction_source?: string;
+  realtime_info?: {
+    hotspot_id: string;
+    hotspot_name: string;
+    severity: number;
+    speed_ratio: number;
+    delay_ratio: number;
+    influence: number;
+    distance_meters: number;
+  };
 }
 
 export interface PredictionResult {
@@ -13,6 +23,30 @@ export interface PredictionResult {
   los_encoded: number;
   confidence: number;
   error?: string;
+}
+
+export interface HotspotRealtimeInfo {
+  current_speed: number;
+  free_flow_speed: number;
+  speed_ratio: number;
+  current_travel_time: number;
+  free_flow_travel_time: number;
+  delay_ratio: number;
+  confidence: number;
+  road_closure: boolean;
+  severity?: number;
+}
+
+export interface TrafficHotspot {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radius_meters: number;
+  description?: string;
+  realtime?: HotspotRealtimeInfo | null;
+  realtime_status?: 'ok' | 'disabled' | 'error';
+  realtime_message?: string;
 }
 
 export async function fetchSegmentsFromAPI(params: {
@@ -68,4 +102,18 @@ export async function fetchPredictions(params: {
   }
   const data = await response.json();
   return data.predictions;
+}
+
+export async function fetchHotspotsFromAPI(): Promise<{
+  hotspots: TrafficHotspot[];
+  total: number;
+  realtime_enabled?: boolean;
+}> {
+  const response = await fetch(`${API_BASE}/hotspots`, {
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    throw new Error(`FastAPI /hotspots returned ${response.status}`);
+  }
+  return response.json();
 }

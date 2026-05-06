@@ -1,0 +1,18 @@
+[
+  {
+    "id": "route_001",
+    "name": "Ngã tư Thủ Đức",
+    "lat": 10.8493,
+    "lng": 106.7741,
+    "radius_meters": 700,
+    "description": "Nút giao Xa lộ Hà Nội - Võ Văn Ngân - Lê Văn Việt"
+  },
+  {
+    "id": "route_002",
+    "name": "Chợ Thủ Đức",
+    "lat": 10.8508,
+    "lng": 106.7618,
+    "radius_meters": 500,
+    "description": "Khu vực chợ Thủ Đức và trục Võ Văn Ngân - Kha Vạn Cân"
+  }
+]

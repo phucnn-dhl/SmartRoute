@@ -4,10 +4,16 @@ from typing import Optional
 
 from db.database import get_db
 from models.xgboost_model import TrafficModel
-from models.preprocessor import heuristic_predict
+from models.realtime import (
+    load_hotspots, find_hotspots_in_viewport,
+    get_hotspot_realtime, compute_realtime_severity,
+    adjust_los_by_realtime, haversine_meters,
+)
 from schemas.responses import SegmentsResponse, SegmentResponse
 
 router = APIRouter()
+
+_hotspots = load_hotspots()
 
 
 def get_model():
@@ -66,6 +72,17 @@ def get_segments(
             except Exception:
                 predictions = {}
 
+        # Realtime adjustment for segments near hotspots
+        hotspots_in_view = find_hotspots_in_viewport(
+            _hotspots, minLat, maxLat, minLng, maxLng,
+        )
+        realtime_data = {}
+        for h in hotspots_in_view:
+            rt = get_hotspot_realtime(h)
+            if rt:
+                rt["severity"] = compute_realtime_severity(rt)
+                realtime_data[h["id"]] = (h, rt)
+
         segments = []
         for row in rows:
             seg = SegmentResponse(
@@ -85,9 +102,51 @@ def get_segments(
                 if pred:
                     seg.los = pred.get('los', 'C')
                     seg.confidence = pred.get('confidence', 0.0)
+                    has_xgb = row['has_xgboost_data'] if 'has_xgboost_data' in row.keys() else False
+                    seg.prediction_source = "xgboost" if has_xgb else "heuristic"
                 else:
                     seg.los = 'C'
                     seg.confidence = 0.0
+                    seg.prediction_source = "heuristic"
+
+                # Apply realtime adjustment
+                if realtime_data and seg.los:
+                    seg_mid_lat = (row['lat_snode'] + row['lat_enode']) / 2
+                    seg_mid_lng = (row['long_snode'] + row['long_enode']) / 2
+
+                    best_influence = 0
+                    best_adjustment = None
+                    best_info = None
+
+                    for hid, (h, rt) in realtime_data.items():
+                        dist = haversine_meters(
+                            seg_mid_lat, seg_mid_lng,
+                            h["lat"], h["lng"],
+                        )
+                        if dist < h["radius_meters"]:
+                            influence = max(0, 1 - dist / h["radius_meters"])
+                            if influence > best_influence and rt["severity"] >= 1:
+                                best_influence = influence
+                                best_adjustment = adjust_los_by_realtime(
+                                    seg.los, seg.confidence or 0.5,
+                                    rt["severity"], influence,
+                                )
+                                best_info = {
+                                    "hotspot_id": h["id"],
+                                    "hotspot_name": h["name"],
+                                    "severity": rt["severity"],
+                                    "speed_ratio": round(rt.get("speed_ratio", 1), 2),
+                                    "delay_ratio": round(rt.get("delay_ratio", 1), 2),
+                                    "influence": round(influence, 2),
+                                    "distance_meters": round(dist),
+                                }
+
+                    if best_info:
+                        seg.prediction_source = "xgboost_realtime"
+                        seg.realtime_info = best_info
+                    if best_adjustment and best_adjustment["los"] != seg.los:
+                        seg.los = best_adjustment["los"]
+                        seg.confidence = best_adjustment["confidence"]
 
             segments.append(seg)
 

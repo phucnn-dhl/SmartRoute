@@ -10,8 +10,10 @@ export function useSearch(mapCenter: LonLat) {
   const [options, setOptions] = useState<SearchOption[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(input);
+  const mapCenterRef = useRef(mapCenter);
 
   useEffect(() => { inputRef.current = input; }, [input]);
+  useEffect(() => { mapCenterRef.current = mapCenter; }, [mapCenter]);
 
   useEffect(() => {
     const trimmed = input.trim();
@@ -26,7 +28,7 @@ export function useSearch(mapCenter: LonLat) {
     setOptions([{ type: 'loader', label: '', sublabel: '' }]);
 
     let cancelled = false;
-    fetchPhotonResults(trimmed, mapCenter)
+    fetchPhotonResults(trimmed, mapCenterRef.current)
       .then((results) => {
         if (cancelled || inputRef.current !== trimmed) return;
         setOptions(results);
@@ -39,7 +41,7 @@ export function useSearch(mapCenter: LonLat) {
       });
 
     return () => { cancelled = true; };
-  }, [input, mapCenter]);
+  }, [input]);
 
   const getCoords = useCallback((opt: SearchOption): LonLat | null => {
     if (opt.type === 'geocoder' && opt.feature) return opt.feature.geometry.coordinates;

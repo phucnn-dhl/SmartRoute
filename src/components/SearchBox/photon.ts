@@ -1,7 +1,5 @@
 import { LonLat, PhotonFeature, SearchOption } from './types';
 
-const PHOTON_API = 'https://photon.komoot.io/api/';
-
 let abortController: AbortController | null = null;
 
 /** Fetch geocoding results from Photon API */
@@ -18,9 +16,9 @@ export async function fetchPhotonResults(
 
   try {
     const [lon, lat] = mapCenter;
-    const url = `${PHOTON_API}?q=${encodeURIComponent(query)}&lon=${lon}&lat=${lat}&zoom=12&lang=default&limit=8`;
+    const url = `/api/search?q=${encodeURIComponent(query)}&lon=${lon}&lat=${lat}`;
     const res = await fetch(url, { signal: abortController.signal });
-    if (!res.ok) throw new Error(`Photon: ${res.status}`);
+    if (!res.ok) throw new Error(`Search: ${res.status}`);
 
     const data = await res.json();
     return (data.features || []).map((f: PhotonFeature) => ({

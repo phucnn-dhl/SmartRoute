@@ -12,6 +12,13 @@ interface RoutePoint {
   label: string;
 }
 
+export interface ChatRouteCommand {
+  id: number;
+  type: 'open_route_panel' | 'fill_route';
+  originQuery?: string;
+  destinationQuery?: string;
+}
+
 interface SearchBoxProps {
   mapCenter: LonLat;
   onSelect: (coords: LonLat, label: string) => void;
@@ -20,6 +27,7 @@ interface SearchBoxProps {
   onCancelRoute?: () => void;
   onClearRoute?: () => void;
   routeLoading?: boolean;
+  chatCommand?: ChatRouteCommand | null;
 }
 
 export const SearchBox: React.FC<SearchBoxProps> = ({
@@ -30,6 +38,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   onCancelRoute,
   onClearRoute,
   routeLoading = false,
+  chatCommand,
 }) => {
   const [mode, setMode] = useState<Mode>('search');
   const [origin, setOrigin] = useState<RoutePoint | null>(null);
@@ -39,8 +48,14 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const originSearch = useSearch(mapCenter);
   const destSearch = useSearch(mapCenter);
   const containerRef = useRef<HTMLDivElement>(null);
+  const latestMapCenterRef = useRef(mapCenter);
+  const lastHandledChatCommandIdRef = useRef<number | null>(null);
 
   const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    latestMapCenterRef.current = mapCenter;
+  }, [mapCenter]);
 
   useEffect(() => {
     if (routeDestination) {
@@ -49,6 +64,65 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       setActiveField('origin');
     }
   }, [routeDestination]);
+
+  useEffect(() => {
+    if (!chatCommand) return;
+    if (lastHandledChatCommandIdRef.current === chatCommand.id) return;
+
+    lastHandledChatCommandIdRef.current = chatCommand.id;
+
+    if (chatCommand.type === 'open_route_panel') {
+      setMode('route');
+      setActiveField('origin');
+      setFocused(true);
+      return;
+    }
+
+    let cancelled = false;
+    const fillRoute = async () => {
+      setMode('route');
+      setFocused(false);
+
+      const originQuery = chatCommand.originQuery?.trim() || '';
+      const destinationQuery = chatCommand.destinationQuery?.trim() || '';
+      originSearch.setInput(originQuery);
+      destSearch.setInput(destinationQuery);
+
+      const [resolvedOrigin, resolvedDestination] = await Promise.all([
+        resolveRoutePoint(originQuery, latestMapCenterRef.current),
+        resolveRoutePoint(destinationQuery, latestMapCenterRef.current),
+      ]);
+
+      if (cancelled) return;
+
+      if (resolvedOrigin) {
+        setOrigin(resolvedOrigin);
+        originSearch.setInput('');
+      } else {
+        setOrigin(null);
+      }
+
+      if (resolvedDestination) {
+        setDestination(resolvedDestination);
+        destSearch.setInput('');
+      } else {
+        setDestination(null);
+      }
+
+      if (resolvedOrigin && resolvedDestination) {
+        onRoute(resolvedOrigin, resolvedDestination);
+      } else {
+        setActiveField(!resolvedOrigin ? 'origin' : 'destination');
+        setFocused(true);
+      }
+    };
+
+    void fillRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chatCommand, destSearch.setInput, onRoute, originSearch.setInput]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -194,6 +268,42 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     </div>
   );
 };
+
+async function resolveRoutePoint(query: string, mapCenter: LonLat): Promise<RoutePoint | null> {
+  if (!query.trim()) return null;
+
+  const coordMatch = query
+    .trim()
+    .match(/^(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if (coordMatch) {
+    const lat = Number(coordMatch[1]);
+    const lng = Number(coordMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return {
+        coords: [lng, lat],
+        label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      };
+    }
+  }
+
+  const [lon, lat] = mapCenter;
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&lon=${lon}&lat=${lat}`);
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json();
+  const feature = Array.isArray(data?.features) ? data.features[0] : null;
+  const coords = feature?.geometry?.coordinates;
+  if (!Array.isArray(coords) || coords.length < 2) {
+    return null;
+  }
+
+  return {
+    coords: [Number(coords[0]), Number(coords[1])],
+    label: feature?.properties?.name || query,
+  };
+}
 
 const ExploreBar = ({
   input,

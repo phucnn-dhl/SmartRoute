@@ -7,7 +7,7 @@
  * Includes weekday selection for more accurate predictions
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 export interface TimeSelection {
@@ -46,13 +46,20 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     { value: 6, label: 'Thứ Bảy', short: 'T7' },
   ];
 
-  // Get display time
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+
   const getDisplayTime = () => {
     if (value.type === 'preset' && value.horizon === 'now') {
       return 'Hiện tại';
     }
     if (value.type === 'preset') {
-      const offset = parseInt(value.horizon!.slice(1));
+      const offset = parseInt(value.horizon!.slice(1), 10);
       const futureTime = new Date(Date.now() + offset * 60 * 1000);
       return `+${offset} phút (${formatTime(futureTime)})`;
     }
@@ -62,49 +69,34 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     return 'Hiện tại';
   };
 
-  // Format time to HH:MM
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  // Handle preset selection
   const handlePresetClick = (horizon: 'now' | '+15' | '+30' | '+60') => {
     onChange({
       type: 'preset',
       horizon,
-      weekday: selectedWeekday
+      weekday: selectedWeekday,
     });
     setShowCustomPicker(false);
   };
 
-  // Handle weekday selection
-  const handleWeekdayChange = (weekday: number) => {
-    const newValue = selectedWeekday === weekday
-      ? undefined // Deselect if clicking the same day
-      : weekday;
+  const handleWeekdayChange = (weekday: number | undefined) => {
+    const newValue = selectedWeekday === weekday ? undefined : weekday;
     setSelectedWeekday(newValue);
 
-    // Update the current selection with new weekday
     if (value.type === 'preset') {
       onChange({
         type: 'preset',
         horizon: value.horizon,
-        weekday: newValue
+        weekday: newValue,
       });
     } else if (value.type === 'custom') {
       onChange({
         type: 'custom',
         customTime: value.customTime,
-        weekday: newValue
+        weekday: newValue,
       });
     }
   };
 
-  // Handle custom time submission
   const handleCustomTimeSubmit = () => {
     const now = new Date();
     const customTime = new Date();
@@ -112,7 +104,6 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     customTime.setMinutes(customMinute);
     customTime.setSeconds(0);
 
-    // If custom time is in the past, set to tomorrow
     if (customTime < now) {
       customTime.setDate(customTime.getDate() + 1);
     }
@@ -120,12 +111,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     onChange({
       type: 'custom',
       customTime,
-      weekday: selectedWeekday
+      weekday: selectedWeekday,
     });
     setShowCustomPicker(false);
   };
 
-  // Check if custom time is today or tomorrow
   const getTimeLabel = () => {
     if (value.type === 'preset') {
       return getDisplayTime();
@@ -134,13 +124,12 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     if (value.type === 'custom' && value.customTime) {
       const now = new Date();
       const isToday = value.customTime.toDateString() === now.toDateString();
-      const isTomorrow = new Date(value.customTime.getDate() + 1) > now;
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
       if (isToday) {
         return `Hôm nay, ${formatTime(value.customTime)}`;
       }
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
       if (value.customTime.toDateString() === tomorrow.toDateString()) {
         return `Ngày mai, ${formatTime(value.customTime)}`;
       }
@@ -199,7 +188,6 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         width: isMobile ? 'calc(100vw - 32px)' : undefined,
       }}
     >
-      {/* Current selection display */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 18 }}>⏰</span>
@@ -211,7 +199,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
               {getTimeLabel()}
               {selectedWeekday !== undefined && (
                 <span style={{ color: '#666', fontWeight: 500 }}>
-                  {' ('}{weekdays.find(w => w.value === selectedWeekday)?.short}{')'}
+                  {' ('}{weekdays.find((w) => w.value === selectedWeekday)?.short}{')'}
                 </span>
               )}
             </div>
@@ -236,14 +224,13 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         </button>
       </div>
 
-      {/* Weekday selector */}
       <div>
         <div style={{ fontSize: 12, color: '#666', fontWeight: 500, marginBottom: 6 }}>
           Chọn thứ trong tuần (tùy chọn):
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button
-            onClick={() => handleWeekdayChange(undefined as any)}
+            onClick={() => handleWeekdayChange(undefined)}
             style={{
               padding: '6px 10px',
               borderRadius: 6,
@@ -292,12 +279,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         </div>
         {selectedWeekday !== undefined && (
           <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
-            Đã chọn: {weekdays.find(w => w.value === selectedWeekday)?.label}
+            Đã chọn: {weekdays.find((w) => w.value === selectedWeekday)?.label}
           </div>
         )}
       </div>
 
-      {/* Preset buttons */}
       {!showCustomPicker && (
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           {([
@@ -340,7 +326,6 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         </div>
       )}
 
-      {/* Custom time picker */}
       {showCustomPicker && (
         <div
           style={{
@@ -356,7 +341,6 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             📅 Chọn giờ cụ thể:
           </div>
 
-          {/* Quick time buttons */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
               { label: '7:00 (Giờ cao điểm sáng)', hour: 7, minute: 0 },
@@ -380,7 +364,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                   onChange({
                     type: 'custom',
                     customTime,
-                    weekday: selectedWeekday
+                    weekday: selectedWeekday,
                   });
                   setShowCustomPicker(false);
                 }}
@@ -388,12 +372,18 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                   padding: '8px 12px',
                   borderRadius: 8,
                   border: '1px solid #e0e0e0',
-                  background: value.type === 'custom' && value.customTime?.getHours() === time.hour && value.customTime?.getMinutes() === time.minute
-                    ? '#1976d2'
-                    : 'white',
-                  color: value.type === 'custom' && value.customTime?.getHours() === time.hour && value.customTime?.getMinutes() === time.minute
-                    ? 'white'
-                    : '#333',
+                  background:
+                    value.type === 'custom'
+                    && value.customTime?.getHours() === time.hour
+                    && value.customTime?.getMinutes() === time.minute
+                      ? '#1976d2'
+                      : 'white',
+                  color:
+                    value.type === 'custom'
+                    && value.customTime?.getHours() === time.hour
+                    && value.customTime?.getMinutes() === time.minute
+                      ? 'white'
+                      : '#333',
                   fontSize: 12,
                   fontWeight: 500,
                   cursor: 'pointer',
@@ -405,7 +395,6 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             ))}
           </div>
 
-          {/* Custom time input */}
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ flex: 1 }}>
               <label style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }}>
@@ -416,7 +405,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                 min="0"
                 max="23"
                 value={customHour}
-                onChange={(e) => setCustomHour(parseInt(e.target.value) || 0)}
+                onChange={(e) => setCustomHour(parseInt(e.target.value, 10) || 0)}
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -435,7 +424,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                 min="0"
                 max="59"
                 value={customMinute}
-                onChange={(e) => setCustomMinute(parseInt(e.target.value) || 0)}
+                onChange={(e) => setCustomMinute(parseInt(e.target.value, 10) || 0)}
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -447,7 +436,6 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             </div>
           </div>
 
-          {/* Submit button */}
           <button
             onClick={handleCustomTimeSubmit}
             style={{

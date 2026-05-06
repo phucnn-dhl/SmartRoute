@@ -29,6 +29,8 @@ class SegmentResponse(BaseModel):
     length: float
     los: Optional[str] = None
     confidence: Optional[float] = None
+    prediction_source: str = "xgboost"
+    realtime_info: Optional[Dict] = None
 
 
 class SegmentsResponse(BaseModel):

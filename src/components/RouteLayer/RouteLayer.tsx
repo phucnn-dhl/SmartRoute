@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl, { GeoJSONSource } from 'maplibre-gl';
-import { CongestedSegment, Coordinate, PredictionAnalysis, RouteData } from '@/lib/routing';
+import { CongestedSegment, Coordinate, PredictionAnalysis, RankedRoute, RouteData } from '@/lib/routing';
 
 const ROUTE_SOURCE_ID = 'route-source';
 const ROUTE_CASING_LAYER_ID = 'route-line-casing';
@@ -17,6 +17,9 @@ interface RouteLayerProps {
   destination: Coordinate | null;
   route: RouteData | null;
   predictionAnalysis: PredictionAnalysis | null;
+  alternativeRoutes?: RankedRoute[];
+  selectedRouteId?: string | null;
+  onSelectRoute?: (id: string) => void;
 }
 
 export const RouteLayer: React.FC<RouteLayerProps> = ({
@@ -25,14 +28,23 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
   destination,
   route,
   predictionAnalysis,
+  alternativeRoutes = [],
+  selectedRouteId = null,
+  onSelectRoute,
 }) => {
   const originMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destinationMarkerRef = useRef<maplibregl.Marker | null>(null);
   const debugMarkersRef = useRef<maplibregl.Marker[]>([]);
   const fittedRouteRef = useRef<string | null>(null);
   const [routeScreenPath, setRouteScreenPath] = useState('');
+  const [altScreenPaths, setAltScreenPaths] = useState<{ id: string; path: string }[]>([]);
   const [congestionScreenPaths, setCongestionScreenPaths] = useState<string[]>([]);
 
+  const unselectedRoutes = alternativeRoutes.filter(
+    (r) => r.id !== selectedRouteId && r.route.geometry,
+  );
+
+  // Origin/destination markers
   useEffect(() => {
     if (!map) return;
 
@@ -57,6 +69,7 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
     }
   }, [destination, map, origin]);
 
+  // Route layers (mapbox layers + click handler)
   useEffect(() => {
     if (!map) return;
 
@@ -64,154 +77,198 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
       debugMarkersRef.current.forEach((marker) => marker.remove());
       debugMarkersRef.current = [];
 
-      if (!route) {
-        destroyRouteLayers(map);
+      destroyRouteLayers(map);
+
+      if (!route && unselectedRoutes.length === 0) {
         fittedRouteRef.current = null;
         return;
       }
 
-      destroyRouteLayers(map);
+      // Draw unselected alternative routes as faint lines
+      unselectedRoutes.forEach((alt, index) => {
+        const sourceId = `alt-route-source-${index}`;
+        const layerId = `alt-route-line-${index}`;
 
-      const featureCollection: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            properties: {},
-            geometry: route.geometry,
-          },
-        ],
-      };
-
-      map.addSource(ROUTE_SOURCE_ID, {
-        type: 'geojson',
-        data: featureCollection,
-        lineMetrics: true,
-      });
-
-      map.addLayer({
-        id: ROUTE_CASING_LAYER_ID,
-        type: 'line',
-        source: ROUTE_SOURCE_ID,
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': '#ffffff',
-          'line-width': 12,
-          'line-opacity': 1,
-        },
-      });
-
-      map.addLayer({
-        id: ROUTE_LAYER_ID,
-        type: 'line',
-        source: ROUTE_SOURCE_ID,
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': '#0047ff',
-          'line-width': 8,
-          'line-opacity': 1,
-        },
-      });
-
-      console.log('Route layer update', {
-        geometryType: route.geometry.type,
-        coordinateCount: route.geometry.coordinates.length,
-        hasRouteSource: Boolean(map.getSource(ROUTE_SOURCE_ID)),
-        hasRouteLayer: Boolean(map.getLayer(ROUTE_LAYER_ID)),
-        firstCoordinate: route.geometry.coordinates[0],
-        lastCoordinate: route.geometry.coordinates[route.geometry.coordinates.length - 1],
-      });
-
-      route.geometry.coordinates.slice(0, 2).forEach((coordinate, index) => {
-        const el = document.createElement('div');
-        el.style.width = '12px';
-        el.style.height = '12px';
-        el.style.borderRadius = '999px';
-        el.style.background = index === 0 ? '#0047ff' : '#7c3aed';
-        el.style.border = '2px solid white';
-        el.style.boxShadow = '0 0 0 2px rgba(15, 23, 42, 0.15)';
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat(coordinate as [number, number])
-          .addTo(map);
-        debugMarkersRef.current.push(marker);
-      });
-
-      const congestionFeatures: GeoJSON.Feature<GeoJSON.LineString, { los: string; delaySeconds: number }>[] =
-        (predictionAnalysis?.congestedSegments || [])
-          .filter(hasGeometry)
-          .map((segment) => ({
-            type: 'Feature',
-            properties: {
-              los: segment.los || 'D',
-              delaySeconds: segment.delaySeconds || 0,
-            },
-            geometry: segment.geometry,
-          }));
-
-      const congestionFeatureCollection: GeoJSON.FeatureCollection<
-        GeoJSON.LineString,
-        { los: string; delaySeconds: number }
-      > = {
-        type: 'FeatureCollection',
-        features: congestionFeatures,
-      };
-
-      if (congestionFeatures.length > 0) {
-        map.addSource(CONGESTION_SOURCE_ID, {
+        map.addSource(sourceId, {
           type: 'geojson',
-          data: congestionFeatureCollection,
+          data: {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                properties: { routeId: alt.id },
+                geometry: alt.route.geometry,
+              },
+            ],
+          },
         });
 
         map.addLayer({
-          id: CONGESTION_LAYER_ID,
+          id: layerId,
           type: 'line',
-          source: CONGESTION_SOURCE_ID,
+          source: sourceId,
           layout: {
             'line-join': 'round',
             'line-cap': 'round',
           },
           paint: {
-            'line-color': [
-              'match',
-              ['get', 'los'],
-              'F', '#7f1d1d',
-              'E', '#dc2626',
-              'D', '#f97316',
-              '#f97316',
-            ],
-            'line-width': 7,
-            'line-opacity': 0.92,
-            'line-dasharray': [1, 1.5],
+            'line-color': '#94a3b8',
+            'line-width': 5,
+            'line-opacity': 0.45,
           },
         });
+
+        // Click handler for alternative route selection
+        if (onSelectRoute) {
+          map.on('click', layerId, () => {
+            onSelectRoute(alt.id);
+          });
+          map.on('mouseenter', layerId, () => {
+            map.getCanvas().style.cursor = 'pointer';
+          });
+          map.on('mouseleave', layerId, () => {
+            map.getCanvas().style.cursor = '';
+          });
+        }
+      });
+
+      // Draw selected route
+      if (route) {
+        const featureCollection: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {},
+              geometry: route.geometry,
+            },
+          ],
+        };
+
+        map.addSource(ROUTE_SOURCE_ID, {
+          type: 'geojson',
+          data: featureCollection,
+          lineMetrics: true,
+        });
+
+        map.addLayer({
+          id: ROUTE_CASING_LAYER_ID,
+          type: 'line',
+          source: ROUTE_SOURCE_ID,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round',
+          },
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 12,
+            'line-opacity': 1,
+          },
+        });
+
+        map.addLayer({
+          id: ROUTE_LAYER_ID,
+          type: 'line',
+          source: ROUTE_SOURCE_ID,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round',
+          },
+          paint: {
+            'line-color': '#0047ff',
+            'line-width': 8,
+            'line-opacity': 1,
+          },
+        });
+
+        route.geometry.coordinates.slice(0, 2).forEach((coordinate, index) => {
+          const el = document.createElement('div');
+          el.style.width = '12px';
+          el.style.height = '12px';
+          el.style.borderRadius = '999px';
+          el.style.background = index === 0 ? '#0047ff' : '#7c3aed';
+          el.style.border = '2px solid white';
+          el.style.boxShadow = '0 0 0 2px rgba(15, 23, 42, 0.15)';
+          const marker = new maplibregl.Marker({ element: el })
+            .setLngLat(coordinate as [number, number])
+            .addTo(map);
+          debugMarkersRef.current.push(marker);
+        });
+
+        // Congestion overlay (selected route only)
+        const congestionFeatures: GeoJSON.Feature<GeoJSON.LineString, { los: string; delaySeconds: number }>[] =
+          (predictionAnalysis?.congestedSegments || [])
+            .filter(hasGeometry)
+            .map((segment) => ({
+              type: 'Feature',
+              properties: {
+                los: segment.los || 'D',
+                delaySeconds: segment.delaySeconds || 0,
+              },
+              geometry: segment.geometry,
+            }));
+
+        if (congestionFeatures.length > 0) {
+          map.addSource(CONGESTION_SOURCE_ID, {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: congestionFeatures,
+            },
+          });
+
+          map.addLayer({
+            id: CONGESTION_LAYER_ID,
+            type: 'line',
+            source: CONGESTION_SOURCE_ID,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': [
+                'match',
+                ['get', 'los'],
+                'F', '#7f1d1d',
+                'E', '#dc2626',
+                'D', '#f97316',
+                '#f97316',
+              ],
+              'line-width': 7,
+              'line-opacity': 0.92,
+              'line-dasharray': [1, 1.5],
+            },
+          });
+        }
       }
 
       liftRouteLayers(map);
 
-      const routeKey = JSON.stringify(route.geometry.coordinates);
-      if (fittedRouteRef.current !== routeKey) {
-        const [firstCoordinate, ...remainingCoordinates] = route.geometry.coordinates;
-        const bounds = new maplibregl.LngLatBounds(
-          firstCoordinate as [number, number],
-          firstCoordinate as [number, number]
-        );
+      // Fit bounds to encompass all routes
+      const routesToFit = [
+        ...(route ? [route] : []),
+        ...unselectedRoutes.map((r) => r.route),
+      ];
 
-        remainingCoordinates.forEach((coordinate) => {
-          bounds.extend(coordinate as [number, number]);
-        });
+      if (routesToFit.length > 0) {
+        const allCoords = routesToFit.flatMap((r) => r.geometry.coordinates);
+        if (allCoords.length > 0) {
+          const [first, ...rest] = allCoords;
+          const bounds = new maplibregl.LngLatBounds(
+            first as [number, number],
+            first as [number, number],
+          );
+          rest.forEach((c) => bounds.extend(c as [number, number]));
 
-        map.fitBounds(bounds, {
-          padding: { top: 170, right: 60, bottom: 140, left: 60 },
-          duration: 800,
-        });
-
-        fittedRouteRef.current = routeKey;
+          const boundsKey = bounds.toString();
+          if (fittedRouteRef.current !== boundsKey) {
+            map.fitBounds(bounds, {
+              padding: { top: 170, right: 60, bottom: 140, left: 60 },
+              duration: 800,
+            });
+            fittedRouteRef.current = boundsKey;
+          }
+        }
       }
     };
 
@@ -224,8 +281,9 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
     return () => {
       map.off('load', applyRoute);
     };
-  }, [map, predictionAnalysis, route]);
+  }, [map, predictionAnalysis, route, unselectedRoutes, onSelectRoute]);
 
+  // SVG path projection for selected route
   useEffect(() => {
     if (!map) return;
 
@@ -233,15 +291,21 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
       if (!route) {
         setRouteScreenPath('');
         setCongestionScreenPaths([]);
-        return;
+      } else {
+        setRouteScreenPath(projectPath(map, route.geometry.coordinates));
+        setCongestionScreenPaths(
+          (predictionAnalysis?.congestedSegments || [])
+            .filter(hasGeometry)
+            .map((segment) => projectPath(map, segment.geometry.coordinates))
+            .filter(Boolean),
+        );
       }
 
-      setRouteScreenPath(projectPath(map, route.geometry.coordinates));
-      setCongestionScreenPaths(
-        (predictionAnalysis?.congestedSegments || [])
-          .filter(hasGeometry)
-          .map((segment) => projectPath(map, segment.geometry.coordinates))
-          .filter(Boolean)
+      setAltScreenPaths(
+        unselectedRoutes.map((alt) => ({
+          id: alt.id,
+          path: projectPath(map, alt.route.geometry.coordinates),
+        })).filter((p) => p.path),
       );
     };
 
@@ -255,7 +319,7 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
       map.off('zoom', updateProjectedPaths);
       map.off('resize', updateProjectedPaths);
     };
-  }, [map, predictionAnalysis, route]);
+  }, [map, predictionAnalysis, route, unselectedRoutes]);
 
   useEffect(() => {
     return () => {
@@ -277,6 +341,21 @@ export const RouteLayer: React.FC<RouteLayerProps> = ({
         overflow: 'visible',
       }}
     >
+      {/* Unselected alternative routes */}
+      {altScreenPaths.map((alt) => (
+        <path
+          key={alt.id}
+          d={alt.path}
+          fill="none"
+          stroke="#94a3b8"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={0.4}
+        />
+      ))}
+
+      {/* Selected route */}
       {routeScreenPath && (
         <>
           <path
@@ -342,6 +421,14 @@ function projectPath(map: maplibregl.Map, coordinates: GeoJSON.Position[]) {
 export default RouteLayer;
 
 function destroyRouteLayers(map: maplibregl.Map) {
+  // Remove dynamic alternative route layers (up to 5 to be safe)
+  for (let i = 0; i < 5; i++) {
+    const layerId = `alt-route-line-${i}`;
+    const sourceId = `alt-route-source-${i}`;
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+  }
+
   if (map.getLayer(CONGESTION_LAYER_ID)) map.removeLayer(CONGESTION_LAYER_ID);
   if (map.getSource(CONGESTION_SOURCE_ID)) map.removeSource(CONGESTION_SOURCE_ID);
   if (map.getLayer(ROUTE_LAYER_ID)) map.removeLayer(ROUTE_LAYER_ID);
@@ -350,6 +437,14 @@ function destroyRouteLayers(map: maplibregl.Map) {
 }
 
 function liftRouteLayers(map: maplibregl.Map) {
+  // Lift alternative route layers first (they go under the selected route)
+  for (let i = 0; i < 5; i++) {
+    const layerId = `alt-route-line-${i}`;
+    if (map.getLayer(layerId)) {
+      map.moveLayer(layerId);
+    }
+  }
+
   if (map.getLayer(ROUTE_CASING_LAYER_ID)) {
     map.moveLayer(ROUTE_CASING_LAYER_ID);
   }

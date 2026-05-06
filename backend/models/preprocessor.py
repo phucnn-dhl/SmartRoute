@@ -308,20 +308,28 @@ def heuristic_predict(segment, hour: int, weekday: int):
     noise = seed / 233280
 
     if is_night:
-        return {'los': 'A', 'confidence': 0.88}
-
-    if is_weekend:
+        los, confidence = 'A', 0.88
+    elif is_weekend:
         if 8 <= hour <= 20:
-            return {'los': 'C' if noise > 0.65 else 'B', 'confidence': 0.72 if noise > 0.65 else 0.76}
-        return {'los': 'A', 'confidence': 0.84}
-
-    if is_rush_hour:
+            los, confidence = ('C', 0.72) if noise > 0.65 else ('B', 0.76)
+        else:
+            los, confidence = 'A', 0.84
+    elif is_rush_hour:
         if is_major_road:
             if noise > 0.78:
-                return {'los': 'E', 'confidence': 0.74}
-            if noise > 0.46:
-                return {'los': 'D', 'confidence': 0.71}
-            return {'los': 'C', 'confidence': 0.66}
-        return {'los': 'D' if noise > 0.58 else 'C', 'confidence': 0.69 if noise > 0.58 else 0.70}
+                los, confidence = 'E', 0.74
+            elif noise > 0.46:
+                los, confidence = 'D', 0.71
+            else:
+                los, confidence = 'C', 0.66
+        else:
+            los, confidence = ('D', 0.69) if noise > 0.58 else ('C', 0.70)
+    else:
+        los, confidence = ('C', 0.74) if noise > 0.5 else ('B', 0.77)
 
-    return {'los': 'C' if noise > 0.5 else 'B', 'confidence': 0.74 if noise > 0.5 else 0.77}
+    los_encoded = LOS_ENCODING[los]
+    return {
+        'los': los,
+        'los_encoded': los_encoded,
+        'confidence': confidence,
+    }

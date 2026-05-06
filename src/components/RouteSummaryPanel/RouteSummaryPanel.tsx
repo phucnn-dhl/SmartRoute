@@ -7,6 +7,7 @@ import {
   DepartureRecommendationOption,
   PickingMode,
   PredictionAnalysis,
+  RankedRoute,
   RouteData,
 } from '@/lib/routing';
 
@@ -17,6 +18,9 @@ interface RouteSummaryPanelProps {
   recommendationLoading: boolean;
   routeError: string | null;
   pickingMode: PickingMode;
+  alternativeRoutes?: RankedRoute[];
+  selectedRouteId?: string | null;
+  onSelectRoute?: (id: string) => void;
 }
 
 function formatDistance(distanceMeters: number) {
@@ -124,6 +128,28 @@ function getCoverageIcon(coverageLevel: 'low' | 'partial' | 'good'): string {
   }
 }
 
+function getLabelBadgeStyle(label: RankedRoute['label']): React.CSSProperties {
+  switch (label) {
+    case 'recommended':
+      return { background: '#2563eb', color: 'white' };
+    case 'fastest':
+      return { background: '#059669', color: 'white' };
+    case 'least_congested':
+      return { background: '#7c3aed', color: 'white' };
+    default:
+      return { background: '#94a3b8', color: 'white' };
+  }
+}
+
+function getLabelName(label: RankedRoute['label']): string {
+  switch (label) {
+    case 'recommended': return 'Khuyến nghị';
+    case 'fastest': return 'Nhanh nhất';
+    case 'least_congested': return 'Ít tắc';
+    default: return 'Phương án';
+  }
+}
+
 export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
   route,
   predictionAnalysis,
@@ -131,6 +157,9 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
   recommendationLoading,
   routeError,
   pickingMode,
+  alternativeRoutes = [],
+  selectedRouteId = null,
+  onSelectRoute,
 }) => {
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
@@ -140,7 +169,7 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
     right: 10,
     bottom: isMobile ? 50 : 100,
     zIndex: 1200,
-    width: isMobile ? 'calc(100vw - 20px)' : 'min(320px, calc(100vw - 20px))',
+    width: isMobile ? 'calc(100vw - 20px)' : 'min(340px, calc(100vw - 20px))',
     maxHeight: isMobile ? (expanded ? 'calc(60vh - 50px)' : undefined) : 'calc(100vh - 120px)',
     overflowY: isMobile ? (expanded ? 'auto' : undefined) : 'auto',
     background: 'rgba(255, 255, 255, 0.96)',
@@ -148,6 +177,8 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
     boxShadow: '0 10px 30px rgba(15, 23, 42, 0.16)',
     padding: 16,
   };
+
+  const hasAlternatives = alternativeRoutes.length > 1;
 
   // Mobile: hide panel when no route
   if (isMobile && !route) {
@@ -164,7 +195,9 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
       <div style={containerStyle}>
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Tóm tắt tuyến đường</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+            {hasAlternatives ? `${alternativeRoutes.length} tuyến đường` : 'Tóm tắt tuyến đường'}
+          </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {expanded && (
               <button
@@ -202,6 +235,36 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Alternative route pills (mobile) */}
+        {hasAlternatives && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            {alternativeRoutes.map((alt) => (
+              <button
+                key={alt.id}
+                type="button"
+                onClick={() => onSelectRoute?.(alt.id)}
+                style={{
+                  flexShrink: 0,
+                  padding: '6px 10px',
+                  borderRadius: 10,
+                  border: alt.id === selectedRouteId ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                  background: alt.id === selectedRouteId ? '#eff6ff' : '#fff',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <span style={{ ...getLabelBadgeStyle(alt.label), padding: '1px 6px', borderRadius: 6, fontSize: 9, fontWeight: 700 }}>
+                    {getLabelName(alt.label)}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{formatDuration(alt.route.durationSeconds)}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>{formatDistance(alt.route.distanceMeters)}</div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Metrics row */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
@@ -305,10 +368,12 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
     );
   }
 
-  // Desktop: full view (unchanged)
+  // Desktop: full view
   return (
     <div style={containerStyle}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Tóm tắt tuyến đường</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+        {hasAlternatives ? `${alternativeRoutes.length} tuyến đường` : 'Tóm tắt tuyến đường'}
+      </div>
 
       {!route && !routeError && (
         <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginTop: 10 }}>
@@ -334,9 +399,60 @@ export const RouteSummaryPanel: React.FC<RouteSummaryPanelProps> = ({
         </div>
       )}
 
+      {/* Alternative route selector (desktop) */}
+      {hasAlternatives && route && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+            Chọn tuyến đường
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {alternativeRoutes.map((alt) => {
+              const isSelected = alt.id === selectedRouteId;
+              return (
+                <button
+                  key={alt.id}
+                  type="button"
+                  onClick={() => onSelectRoute?.(alt.id)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                    background: isSelected ? '#eff6ff' : '#fff',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'border-color 0.15s, background 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ ...getLabelBadgeStyle(alt.label), padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700 }}>
+                        {getLabelName(alt.label)}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{formatDuration(alt.route.durationSeconds)}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>{formatDistance(alt.route.distanceMeters)}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
+                    {alt.reason}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: '#f8fafc', fontWeight: 600 }}>
+                      Trễ {formatDelay(alt.score.predictedDelaySeconds)}
+                    </span>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: '#f8fafc', fontWeight: 600 }}>
+                      Tắc nghẽn {formatCongestionScore(alt.score.congestionScore)}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {route && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: hasAlternatives ? 12 : 14 }}>
             <div style={metricCardStyle}>
               <div style={metricLabelStyle}>Khoảng cách</div>
               <div style={metricValueStyle}>{formatDistance(route.distanceMeters)}</div>

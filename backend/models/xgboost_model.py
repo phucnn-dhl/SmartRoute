@@ -125,31 +125,33 @@ class TrafficModel:
     def predict_batch(self, conn: sqlite3.Connection, segment_ids: list,
                       hour: int, minute: int, weekday: int,
                       month: int, day_of_month: int, date: str):
-        segments = {}
+        rows = []
+        row_by_id = {}
         for sid in segment_ids:
             row = conn.execute(
                 "SELECT * FROM segments WHERE segment_id = ?", (sid,)
             ).fetchone()
             if row:
-                segments[sid] = row
+                rows.append(row)
+                row_by_id[sid] = row
+
+        # Use batch prediction for all segments at once
+        predictions = self.predict_viewport(
+            conn, rows, hour, minute, weekday,
+            month, day_of_month, date,
+        )
 
         results = []
         for sid in segment_ids:
-            if sid not in segments:
-                continue
-            try:
-                pred = self.predict_one(
-                    conn, sid, segments[sid],
-                    hour, minute, weekday, month, day_of_month, date,
-                )
-                pred['segment_id'] = sid
-                results.append(pred)
-            except Exception as e:
+            pred = predictions.get(sid)
+            if not pred:
                 results.append({
                     'segment_id': sid,
                     'los': 'C',
                     'los_encoded': 2,
                     'confidence': 0.0,
-                    'error': str(e),
                 })
+            else:
+                pred['segment_id'] = sid
+                results.append(pred)
         return results
